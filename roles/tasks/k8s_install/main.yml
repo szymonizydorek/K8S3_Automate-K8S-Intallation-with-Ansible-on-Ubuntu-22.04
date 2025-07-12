@@ -1,7 +1,16 @@
 ---
+Comment #1: This task is not needed. We assume the server is clean and we dont want to remove any files. What if you already have K8s installed and by accident you run this role with this task that removes some files? And then K8s cannot start?
+
 - name: Remove Old Reposository Files
   command:
     cmd: rm -f /etc/apt/sources.list.d/kubernetes.list
+
+
+Comment #2: These two  tasks (line 15-22) can be replaced with one below: 
+- name: Update repositories cache and install "docker.io" package
+  apt:
+    name: docker.io
+    update_cache: yes
 
 - name: Update Apt Packages
   apt:
@@ -11,6 +20,14 @@
   apt:
     name: docker.io
     state: present
+
+
+Comment #3: The same  - we dont need two tasks to make sure docker run. Replace lines 32-41 with one task that is on line 26-30
+ - name: Ensure Docker is enabled and running
+   service:
+     name: docker
+     state: started
+    enabled: yes
 
 - name: Start Docker Service
   service:
@@ -22,19 +39,30 @@
   service:
     name: docker
     state: started
-  
+
+Comment #4: In the instruction step #1 is: 
+curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+The one below only accomplish curl part - you also need to dearmor the key 
+
+
 - name: Add Kubernetes Signing Key
   apt_key:
     url: https://pkgs.k8s.io/core:/stable:/v{{ k8s_version }}/deb/Release.key
     state: present
 
+
+
+
 - name: Add Kubernetes Software Repositories
   apt_repository:
     repo: "deb https://pkgs.k8s.io/core:/stable:/v{{ k8s_version }}/deb/ /"
     state: present
+Comment #5 - Why do we need filename here? 
     filename: kubernetes
+    udate_cache: yes << -- The next task (line 65 - 68 should be this line)
 #above could be reason for error with deployment
 
+This task can be a line in apt_repository 
 - name: Update Apt Packages
   apt:
     update_cache: yes
@@ -47,6 +75,7 @@
       - kubectl
     state: present
 
+Comment #6 - Good job using dpkg_selections module. APT natively doensnt support hold 
 - name: Hold Kubernetes Tools
   dpkg_selections:
     name: "{{ item }}"
@@ -56,6 +85,7 @@
     - kubeadm
     - kubectl
 
+Comment #7 - Checking version is fine but we will need to also have debug task. So in this task tou register the  output and debug in the next one 
 - name: Check Kubernetes Tools Versions
   command: "{{ item }} --version"
   loop: "{{ k8s_tools }}"
